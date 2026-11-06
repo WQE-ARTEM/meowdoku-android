@@ -119,7 +119,7 @@ class SolverAccessibilityService : AccessibilityService() {
             }
 
             apiKeyInput = EditText(context).apply {
-                hint = "Вставьте Gemini API Ключ"
+                hint = "Вставьте DeepSeek API Ключ"
                 textSize = 11f
                 setSingleLine(true)
                 setTextColor(Color.BLACK)

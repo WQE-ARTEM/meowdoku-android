@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Meowdoku Solver</string>
+    <string name="service_name">Meowdoku Экранный Решатель</string>
+    <string name="accessibility_desc">Позволяет распознавать сетку головоломки Meowdoku на экране и автоматически расставлять котов.</string>
+</resources>

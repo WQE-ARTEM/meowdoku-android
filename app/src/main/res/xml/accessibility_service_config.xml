@@ -1,7 +1,6 @@
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagCanTakeScreenshot|flagIncludeNotImportantViews"
-    android:canTakeScreenshot="true"
+    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews"
     android:notificationTimeout="100"
     android:settingsActivity="com.meowdoku.autosolver.MainActivity" />

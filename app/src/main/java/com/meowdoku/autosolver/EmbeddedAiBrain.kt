@@ -20,7 +20,6 @@ object EmbeddedAiBrain {
         if (apiKey.isBlank()) return@withContext emptyList()
 
         try {
-            // Сжимаем скриншот для быстрой отправки
             val scaled = Bitmap.createScaledBitmap(bitmap, 720, (bitmap.height * (720f / bitmap.width)).toInt(), true)
             val baos = ByteArrayOutputStream()
             scaled.compress(Bitmap.CompressFormat.JPEG, 80, baos)
@@ -38,7 +37,7 @@ object EmbeddedAiBrain {
             }
 
             val prompt = """
-                Ты — универсальный игровой ИИ-агент. Проанализируй состояние экрана по описанию/изображению и выдай следующий лучший ход.
+                Ты — универсальный игровой ИИ-агент. Проанализируй состояние экрана по изображению и выдай следующий лучший ход.
                 Верни ответ СТРОГО в формате JSON без markdown-оберток:
                 {
                   "actions": [

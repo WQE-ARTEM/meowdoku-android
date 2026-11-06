@@ -120,7 +120,7 @@ class SolverAccessibilityService : AccessibilityService() {
                 setTextColor(Color.WHITE)
                 setOnClickListener {
                     EmbeddedAiBrain.provider = "gemini"
-                    Toast.Context = context
+                    
                     Toast.makeText(context, "Выбран Gemini (нужен VPN)", Toast.LENGTH_SHORT).show()
                 }
             }

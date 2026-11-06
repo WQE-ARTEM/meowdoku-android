@@ -17,9 +17,9 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Build with Gradle
+    - name: Generate Gradle Wrapper and Build
       run: |
-        gradle wrapper --gradle-version 8.5
+        gradle wrapper --gradle-version 8.6
         chmod +x ./gradlew
         ./gradlew assembleDebug
 

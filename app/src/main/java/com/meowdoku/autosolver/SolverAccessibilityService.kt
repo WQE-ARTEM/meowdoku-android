@@ -2,6 +2,7 @@ package com.meowdoku.autosolver
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -19,10 +20,15 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
+import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SolverAccessibilityService : AccessibilityService() {
 
@@ -32,6 +38,7 @@ class SolverAccessibilityService : AccessibilityService() {
     private var stealthButton: View? = null
 
     private var statusText: TextView? = null
+    private var apiKeyInput: EditText? = null
     private var sizeBtn: Button? = null
     private var frameModeBtn: Button? = null
     private var modeBtn: Button? = null
@@ -45,6 +52,7 @@ class SolverAccessibilityService : AccessibilityService() {
     private var isStealthMode: Boolean = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val serviceScope = CoroutineScope(Dispatchers.Main)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -81,7 +89,7 @@ class SolverAccessibilityService : AccessibilityService() {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            0,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -92,13 +100,70 @@ class SolverAccessibilityService : AccessibilityService() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.argb(245, 18, 18, 26))
             setPadding(12, 10, 12, 10)
+            isFocusable = true
+            isFocusableInTouchMode = true
 
             statusText = TextView(context).apply {
-                text = "Meowdoku Bot запущен"
+                text = "Вставьте DeepSeek ключ и нажмите 💾 или 📋"
                 setTextColor(Color.WHITE)
                 textSize = 11f
-                setPadding(8, 2, 8, 6)
+                setPadding(8, 2, 8, 4)
             }
+
+            val keyRow = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 2, 0, 4)
+            }
+
+            apiKeyInput = EditText(context).apply {
+                hint = "Вставьте DeepSeek API Ключ"
+                textSize = 11f
+                setSingleLine(true)
+                setTextColor(Color.BLACK)
+                setBackgroundColor(Color.WHITE)
+                setPadding(10, 6, 10, 6)
+                isFocusable = true
+                isFocusableInTouchMode = true
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val pasteKeyBtn = Button(context).apply {
+                text = "📋 Вставить"
+                setOnClickListener {
+                    try {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+                        if (!pasteData.isNullOrEmpty()) {
+                            apiKeyInput?.setText(pasteData)
+                            EmbeddedAiBrain.apiKey = pasteData
+                            statusText?.text = "✅ Ключ вставлен и сохранен!"
+                            Toast.makeText(context, "Ключ вставлен из буфера", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Буфер обмена пуст", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Ошибка вставки", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            val saveKeyBtn = Button(context).apply {
+                text = "💾"
+                setOnClickListener {
+                    val key = apiKeyInput?.text.toString().trim()
+                    if (key.isNotEmpty()) {
+                        EmbeddedAiBrain.apiKey = key
+                        statusText?.text = "✅ Ключ сохранен!"
+                        Toast.makeText(context, "API ключ сохранен", Toast.LENGTH_SHORT).show()
+                    } else {
+                        statusText?.text = "⚠️ Введите ключ!"
+                    }
+                }
+            }
+
+            keyRow.addView(apiKeyInput)
+            keyRow.addView(pasteKeyBtn)
+            keyRow.addView(saveKeyBtn)
 
             val hScroll = HorizontalScrollView(context).apply {
                 isFillViewport = true
@@ -163,11 +228,18 @@ class SolverAccessibilityService : AccessibilityService() {
                 setPadding(0, 4, 0, 0)
             }
 
-            val solveBtn = Button(context).apply {
+            val botBtn = Button(context).apply {
                 text = "🤖 БОТ"
                 setBackgroundColor(Color.rgb(22, 163, 74))
                 setTextColor(Color.WHITE)
-                setOnClickListener { captureAndSolve() }
+                setOnClickListener { captureAndSolveBot() }
+            }
+
+            val aiBtn = Button(context).apply {
+                text = "🧠 ИИ"
+                setBackgroundColor(Color.rgb(37, 99, 235))
+                setTextColor(Color.WHITE)
+                setOnClickListener { captureAndRunEmbeddedAi() }
             }
 
             val stealthBtn = Button(context).apply {
@@ -187,34 +259,13 @@ class SolverAccessibilityService : AccessibilityService() {
                 }
             }
 
-            bottomRow.addView(solveBtn)
+            bottomRow.addView(botBtn)
+            bottomRow.addView(aiBtn)
             bottomRow.addView(stealthBtn)
             bottomRow.addView(closeAppBtn)
 
-            var initialX = 0
-            var initialY = 0
-            var touchX = 0f
-            var touchY = 0f
-            statusText?.setOnTouchListener { _, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = panelParams.x
-                        initialY = panelParams.y
-                        touchX = event.rawX
-                        touchY = event.rawY
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        panelParams.x = initialX + (event.rawX - touchX).toInt()
-                        panelParams.y = initialY + (event.rawY - touchY).toInt()
-                        windowManager?.updateViewLayout(controlPanel, panelParams)
-                        true
-                    }
-                    else -> false
-                }
-            }
-
             addView(statusText)
+            addView(keyRow)
             addView(hScroll)
             addView(bottomRow)
         }
@@ -239,7 +290,7 @@ class SolverAccessibilityService : AccessibilityService() {
             setBackgroundColor(Color.TRANSPARENT)
             visibility = View.GONE
             isLongClickable = true
-            setOnClickListener { captureAndSolve() }
+            setOnClickListener { captureAndSolveBot() }
             setOnLongClickListener {
                 exitStealthMode()
                 true
@@ -249,6 +300,73 @@ class SolverAccessibilityService : AccessibilityService() {
         windowManager?.addView(stealthButton, stealthParams)
     }
 
+    private fun captureAndRunEmbeddedAi() {
+        if (EmbeddedAiBrain.apiKey.isBlank()) {
+            statusText?.text = "⚠️ Введите DeepSeek ключ!"
+            Toast.makeText(this, "Сначала введите API ключ", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val overlay = boardOverlay ?: return
+        statusText?.text = "🧠 DeepSeek анализирует экран..."
+
+        overlay.visibility = View.INVISIBLE
+        controlPanel?.visibility = View.INVISIBLE
+
+        mainHandler.postDelayed({
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(screenshotResult: ScreenshotResult) {
+                        overlay.visibility = View.VISIBLE
+                        controlPanel?.visibility = View.VISIBLE
+
+                        val hwBuffer = screenshotResult.hardwareBuffer
+                        val hwBitmap = Bitmap.wrapHardwareBuffer(hwBuffer, screenshotResult.colorSpace)
+                        val softBitmap = hwBitmap?.copy(Bitmap.Config.ARGB_8888, false)
+                        hwBuffer.close()
+                        hwBitmap?.recycle()
+
+                        if (softBitmap == null) {
+                            statusText?.text = "Ошибка скриншота"
+                            return
+                        }
+
+                        serviceScope.launch {
+                            val screenW = resources.displayMetrics.widthPixels.toFloat()
+                            val screenH = resources.displayMetrics.heightPixels.toFloat()
+
+                            val actions = withContext(Dispatchers.IO) {
+                                EmbeddedAiBrain.analyzeAndGetAction(softBitmap)
+                            }
+                            softBitmap.recycle()
+
+                            if (actions.isEmpty()) {
+                                statusText?.text = "ИИ не нашел действий"
+                            } else {
+                                statusText?.text = "🧠 DeepSeek выполнил ход!"
+                                var delay = 100L
+                                for (act in actions) {
+                                    val px = act.x * screenW
+                                    val py = act.y * screenH
+                                    mainHandler.postDelayed({ dispatchSingleTap(px, py) }, delay)
+                                    delay += act.delayMs + 50L
+                                }
+                            }
+                        }
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        overlay.visibility = View.VISIBLE
+                        controlPanel?.visibility = View.VISIBLE
+                        statusText?.text = "Ошибка скриншота ($errorCode)"
+                    }
+                }
+            )
+        }, 120L)
+    }
+
     private fun enterStealthMode() {
         isStealthMode = true
         controlPanel?.visibility = View.GONE
@@ -256,7 +374,7 @@ class SolverAccessibilityService : AccessibilityService() {
         boardOverlay?.invalidate()
         boardOverlay?.visibility = View.GONE
         stealthButton?.visibility = View.VISIBLE
-        Toast.makeText(this, "Скрытый режим: тап в угол = старт, удержание = меню", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Скрытый режим: тап в угол = бот, удержание = меню", Toast.LENGTH_SHORT).show()
     }
 
     private fun exitStealthMode() {
@@ -267,10 +385,10 @@ class SolverAccessibilityService : AccessibilityService() {
         boardOverlay?.invalidate()
     }
 
-    private fun captureAndSolve() {
+    private fun captureAndSolveBot() {
         val overlay = boardOverlay ?: return
         if (!isStealthMode) {
-            statusText?.text = "Сканирование..."
+            statusText?.text = "Бот сканирует поле..."
             overlay.visibility = View.INVISIBLE
             controlPanel?.visibility = View.INVISIBLE
         }
@@ -338,7 +456,7 @@ class SolverAccessibilityService : AccessibilityService() {
         if (!isStealthMode) {
             overlay.solvedCats = solution
             overlay.invalidate()
-            statusText?.text = "Решено ${analysis.gridSize}x${analysis.gridSize}"
+            statusText?.text = "Бот решил ${analysis.gridSize}x${analysis.gridSize}"
         }
 
         if (isStealthMode || isAutoTapMode) {
@@ -359,7 +477,6 @@ class SolverAccessibilityService : AccessibilityService() {
             delayMs += 75L
             if (isDoubleTap) {
                 mainHandler.postDelayed({ dispatchSingleTap(tapX, tapY) }, delayMs)
-                delayMs += 105L
             }
         }
     }

@@ -2,7 +2,6 @@ package com.meowdoku.autosolver
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
-import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -20,7 +19,6 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
-import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -38,13 +36,9 @@ class SolverAccessibilityService : AccessibilityService() {
     private var stealthButton: View? = null
 
     private var statusText: TextView? = null
-    private var apiKeyInput: EditText? = null
-    
     private var manualGridSize: Int = 0
     private var currentDisplayGridSize: Int = 9
     private var autoFrameEnabled: Boolean = true
-    private var isAutoTapMode: Boolean = false
-    private var isDoubleTap: Boolean = true
     private var isStealthMode: Boolean = false
     private var activeMode: String = "bot" // "bot" или "ai"
 
@@ -97,132 +91,47 @@ class SolverAccessibilityService : AccessibilityService() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.argb(245, 18, 18, 26))
             setPadding(12, 10, 12, 10)
-            isFocusable = true
-            isFocusableInTouchMode = true
 
             statusText = TextView(context).apply {
-                text = "Режим: 🤖 Бот Meowdoku (выберите режим ниже)"
+                text = "Режим: 🤖 Бот Meowdoku"
                 setTextColor(Color.WHITE)
                 textSize = 11f
                 setPadding(8, 2, 8, 4)
             }
-
-            // Переключатель провайдера ИИ
-            val providerRow = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 2, 0, 2)
-            }
-
-            val geminiProvBtn = Button(context).apply {
-                text = "🌐 Gemini (VPN)"
-                textSize = 10f
-                setBackgroundColor(Color.rgb(37, 99, 235))
-                setTextColor(Color.WHITE)
-                setOnClickListener {
-                    EmbeddedAiBrain.provider = "gemini"
-                    
-                    Toast.makeText(context, "Выбран Gemini (нужен VPN)", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            val deepseekProvBtn = Button(context).apply {
-                text = "⚡ DeepSeek"
-                textSize = 10f
-                setBackgroundColor(Color.rgb(80, 80, 90))
-                setTextColor(Color.WHITE)
-                setOnClickListener {
-                    EmbeddedAiBrain.provider = "deepseek"
-                    Toast.makeText(context, "Выбран DeepSeek", Toast.LENGTH_SHORT).show()
-                }
-            }
-            providerRow.addView(geminiProvBtn)
-            providerRow.addView(deepseekProvBtn)
-
-            val keyRow = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 2, 0, 4)
-            }
-
-            apiKeyInput = EditText(context).apply {
-                hint = "Вставьте API ключ (для ИИ)"
-                textSize = 11f
-                setSingleLine(true)
-                setTextColor(Color.BLACK)
-                setBackgroundColor(Color.WHITE)
-                setPadding(10, 6, 10, 6)
-                isFocusable = true
-                isFocusableInTouchMode = true
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-
-            val pasteKeyBtn = Button(context).apply {
-                text = "📋 Вставить"
-                setOnClickListener {
-                    try {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
-                        if (!pasteData.isNullOrEmpty()) {
-                            apiKeyInput?.setText(pasteData)
-                            EmbeddedAiBrain.apiKey = pasteData
-                            Toast.makeText(context, "Ключ вставлен", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-
-            val saveKeyBtn = Button(context).apply {
-                text = "💾"
-                setOnClickListener {
-                    val key = apiKeyInput?.text.toString().trim()
-                    EmbeddedAiBrain.apiKey = key
-                    Toast.makeText(context, "Ключ сохранен", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            keyRow.addView(apiKeyInput)
-            keyRow.addView(pasteKeyBtn)
-            keyRow.addView(saveKeyBtn)
 
             val bottomRow = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(0, 4, 0, 0)
             }
 
-            // Кнопка переключения на БОТА
             val botTabBtn = Button(context).apply {
-                text = "🤖 Бот Meowdoku"
+                text = "🤖 Бот"
                 setBackgroundColor(Color.rgb(22, 163, 74))
                 setTextColor(Color.WHITE)
                 setOnClickListener {
                     activeMode = "bot"
                     statusText?.text = "Режим: 🤖 Бот Meowdoku"
-                    Toast.makeText(context, "Включен бот для Meowdoku", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Бот Meowdoku", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            // Кнопка переключения на ИИ
             val aiTabBtn = Button(context).apply {
-                text = "🧠 ИИ-Агент"
+                text = "🧠 ИИ"
                 setBackgroundColor(Color.rgb(37, 99, 235))
                 setTextColor(Color.WHITE)
                 setOnClickListener {
                     activeMode = "ai"
                     statusText?.text = "Режим: 🧠 ИИ-Агент"
-                    Toast.makeText(context, "Включен ИИ-агент", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "ИИ-Агент", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            // Универсальная кнопка действия (запускает то, что выбрано)
             val actionBtn = Button(context).apply {
                 text = "⚡ ПУСК"
                 setBackgroundColor(Color.rgb(220, 38, 38))
                 setTextColor(Color.WHITE)
                 setOnClickListener {
-                    if (activeMode == "bot") {
-                        captureAndSolveBot()
-                    } else {
-                        captureAndRunAi()
-                    }
+                    if (activeMode == "bot") captureAndSolveBot() else captureAndRunAi()
                 }
             }
 
@@ -233,14 +142,23 @@ class SolverAccessibilityService : AccessibilityService() {
                 setOnClickListener { enterStealthMode() }
             }
 
+            val closeBtn = Button(context).apply {
+                text = "✕"
+                setBackgroundColor(Color.rgb(100, 100, 100))
+                setTextColor(Color.WHITE)
+                setOnClickListener {
+                    onDestroy()
+                    disableSelf()
+                }
+            }
+
             bottomRow.addView(botTabBtn)
             bottomRow.addView(aiTabBtn)
             bottomRow.addView(actionBtn)
             bottomRow.addView(stealthBtn)
+            bottomRow.addView(closeBtn)
 
             addView(statusText)
-            addView(providerRow)
-            addView(keyRow)
             addView(bottomRow)
         }
 
@@ -277,8 +195,10 @@ class SolverAccessibilityService : AccessibilityService() {
     }
 
     private fun captureAndRunAi() {
-        if (EmbeddedAiBrain.apiKey.isBlank()) {
-            statusText?.text = "⚠️ Введите ключ для ИИ!"
+        val apiKey = EmbeddedAiBrain.getApiKey(this)
+        if (apiKey.isBlank()) {
+            statusText?.text = "⚠️ Введите ключ в приложении!"
+            Toast.makeText(this, "Укажите API ключ в главном меню приложения", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -309,7 +229,7 @@ class SolverAccessibilityService : AccessibilityService() {
                             val screenH = resources.displayMetrics.heightPixels.toFloat()
 
                             val actions = withContext(Dispatchers.IO) {
-                                EmbeddedAiBrain.analyzeAndGetAction(softBitmap)
+                                EmbeddedAiBrain.analyzeAndGetAction(this@SolverAccessibilityService, softBitmap)
                             }
                             softBitmap.recycle()
 

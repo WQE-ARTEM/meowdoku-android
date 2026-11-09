@@ -1,60 +1,108 @@
 package com.meowdoku.autosolver
 
-import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.provider.Settings
-import android.view.Gravity
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.rgb(18, 18, 24))
-            setPadding(48, 48, 48, 48)
-        }
+        try {
+            val prefs = getSharedPreferences("meowdoku_prefs", Context.MODE_PRIVATE)
 
-        val title = TextView(this).apply {
-            text = "🐱 Meowdoku AutoSolver"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 32)
-        }
-
-        val instructions = TextView(this).apply {
-            text = """
-                Инструкция по запуску:
-                
-                1. Нажмите кнопку ниже и включите службу «Meowdoku Экранный Решатель» в разделе Специальные возможности (Accessibility).
-                2. На экране появится зеленая сетка-прицел и плавающая панель.
-                3. Откройте игру Meowdoku / Queens.
-                4. Выберите размер поля (5x5 .. 10x10), совместите зеленую сетку с полем и нажмите «🐱 РЕШИТЬ».
-            """.trimIndent()
-            textSize = 15f
-            setTextColor(Color.LTGRAY)
-            setPadding(0, 0, 0, 48)
-        }
-
-        val openSettingsBtn = Button(this).apply {
-            text = "Включить службу в Настройках"
-            setBackgroundColor(Color.rgb(34, 197, 94))
-            setTextColor(Color.BLACK)
-            setOnClickListener {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            val rootLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(Color.rgb(18, 18, 26))
+                setPadding(32, 48, 32, 48)
             }
-        }
 
-        root.addView(title)
-        root.addView(instructions)
-        root.addView(openSettingsBtn)
-        setContentView(root)
+            val scrollView = ScrollView(this).apply {
+                isFillViewport = true
+                addView(rootLayout)
+            }
+
+            val title = TextView(this).apply {
+                text = "🐱 Meowdoku AutoSolver"
+                setTextColor(Color.WHITE)
+                textSize = 22f
+                setPadding(0, 0, 0, 16)
+            }
+            rootLayout.addView(title)
+
+            val instructions = TextView(this).apply {
+                text = "Инструкция по запуску:\n" +
+                        "1. Включите службу «Meowdoku Экранный Решатель» в Специальных возможностях.\n" +
+                        "2. Откройте игру и используйте плавающую панель."
+                setTextColor(Color.LTGRAY)
+                textSize = 13f
+                setPadding(0, 0, 0, 24)
+            }
+            rootLayout.addView(instructions)
+
+            val enableBtn = Button(this).apply {
+                text = "Включить службу в Настройках"
+                setBackgroundColor(Color.rgb(22, 163, 74))
+                setTextColor(Color.WHITE)
+                setPadding(16, 16, 16, 16)
+                setOnClickListener {
+                    try {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    } catch (_: Exception) {}
+                }
+            }
+            rootLayout.addView(enableBtn)
+
+            val settingsTitle = TextView(this).apply {
+                text = "\n⚙️ Настройки ИИ"
+                setTextColor(Color.WHITE)
+                textSize = 16f
+                setPadding(0, 24, 0, 12)
+            }
+            rootLayout.addView(settingsTitle)
+
+            val apiKeyInput = EditText(this).apply {
+                setText(prefs.getString("api_key", ""))
+                hint = "Вставьте API ключ"
+                textSize = 13f
+                setTextColor(Color.BLACK)
+                setBackgroundColor(Color.WHITE)
+                setPadding(16, 12, 16, 12)
+            }
+            rootLayout.addView(apiKeyInput)
+
+            val saveKeyBtn = Button(this).apply {
+                text = "💾 Сохранить ключ"
+                setBackgroundColor(Color.rgb(37, 99, 235))
+                setTextColor(Color.WHITE)
+                setPadding(16, 12, 16, 12)
+                setOnClickListener {
+                    val keyStr = apiKeyInput.text.toString().trim()
+                    prefs.edit().putString("api_key", keyStr).apply()
+                    Toast.makeText(this@MainActivity, "Ключ сохранен!", Toast.LENGTH_SHORT).show()
+                }
+            }
+            rootLayout.addView(saveKeyBtn)
+
+            setContentView(scrollView)
+        } catch (e: Exception) {
+            val tv = TextView(this).apply {
+                text = "Ошибка инициализации: ${e.message}"
+                setTextColor(Color.RED)
+            }
+            setContentView(tv)
+        }
     }
 }

@@ -2,132 +2,87 @@ package com.meowdoku.autosolver
 
 import kotlin.math.abs
 
-class MeowdokuSolver(private val grid: Array<IntArray>) {
-    private val n: Int = grid.size
-    private val regions: Map<Int, List<Pair<Int, Int>>>
-    private val occupiedRows = BooleanArray(n)
-    private val occupiedCols = BooleanArray(n)
-    private val occupiedRegions = mutableSetOf<Int>()
-    private val cats = mutableListOf<Pair<Int, Int>>()
-    private val blockedCount = Array(n) { IntArray(n) }
-
-    init {
-        val regMap = mutableMapOf<Int, MutableList<Pair<Int, Int>>>()
-        for (r in 0 until n) {
-            for (c in 0 until n) {
-                regMap.getOrPut(grid[r][c]) { mutableListOf() }.add(Pair(r, c))
-            }
-        }
-        regions = regMap
-    }
+class MeowdokuSolver(
+    private val grid: Array<IntArray>,
+    private val prePlacedCats: List<Pair<Int, Int>> = emptyList()
+) {
+    private val n = grid.size
 
     fun solve(): List<Pair<Int, Int>>? {
-        if (n < 4 || regions.size != n) return null
-        if (backtrack()) {
-            return cats.toList()
-        }
-        return null
-    }
-
-    private fun isSafe(r: Int, c: Int, regId: Int): Boolean {
-        if (occupiedRows[r] || occupiedCols[c] || occupiedRegions.contains(regId)) {
-            return false
-        }
-        for ((cr, cc) in cats) {
-            if (abs(cr - r) <= 1 && abs(cc - c) <= 1) {
-                return false
+        val regionCells = HashMap<Int, MutableList<Pair<Int, Int>>>()
+        for (r in 0 until n) {
+            for (c in 0 until n) {
+                val reg = grid[r][c]
+                if (reg < 0) return null
+                regionCells.getOrPut(reg) { mutableListOf() }.add(Pair(r, c))
             }
         }
-        return true
-    }
 
-    private fun getAffectedCells(r: Int, c: Int, regId: Int): List<Pair<Int, Int>> {
-        val set = HashSet<Pair<Int, Int>>()
-        for (i in 0 until n) {
-            set.add(Pair(r, i))
-            set.add(Pair(i, c))
-        }
-        regions[regId]?.let { set.addAll(it) }
-        for (dr in -1..1) {
-            for (dc in -1..1) {
-                val nr = r + dr
-                val nc = c + dc
-                if (nr in 0 until n && nc in 0 until n) {
-                    set.add(Pair(nr, nc))
+        if (regionCells.size != n) return null
+
+        val usedRows = BooleanArray(n)
+        val usedCols = BooleanArray(n)
+        val usedRegions = HashSet<Int>()
+        val assigned = ArrayList<Pair<Int, Int>>(n)
+
+        for ((r, c) in prePlacedCats) {
+            if (r !in 0 until n || c !in 0 until n) continue
+            val reg = grid[r][c]
+            if (usedRows[r] || usedCols[c] || usedRegions.contains(reg)) {
+                return if (prePlacedCats.isNotEmpty()) MeowdokuSolver(grid, emptyList()).solve() else null
+            }
+            for ((ar, ac) in assigned) {
+                if (abs(ar - r) <= 1 && abs(ac - c) <= 1) {
+                    return if (prePlacedCats.isNotEmpty()) MeowdokuSolver(grid, emptyList()).solve() else null
                 }
             }
+            usedRows[r] = true
+            usedCols[c] = true
+            usedRegions.add(reg)
+            assigned.add(Pair(r, c))
         }
-        return set.toList()
-    }
 
-    private fun selectMrvCandidates(): List<Pair<Int, Int>>? {
-        var best: List<Pair<Int, Int>>? = null
-        var minLen = n + 1
+        val remainingRegions = regionCells.keys
+            .filter { !usedRegions.contains(it) }
+            .sortedBy { regionCells[it]?.size ?: 999 }
 
-        // 1. Проверка регионов
-        for ((regId, cells) in regions) {
-            if (occupiedRegions.contains(regId)) continue
-            val avail = cells.filter { (r, c) -> blockedCount[r][c] == 0 && isSafe(r, c, regId) }
-            if (avail.isEmpty()) return null
-            if (avail.size < minLen) {
-                minLen = avail.size
-                best = avail
+        fun canPlace(r: Int, c: Int): Boolean {
+            if (usedRows[r] || usedCols[c]) return false
+            for (i in 0 until assigned.size) {
+                val ar = assigned[i].first
+                val ac = assigned[i].second
+                // Жесткий запрет на касания по вертикали, горизонтали и диагонали
+                if (abs(ar - r) <= 1 && abs(ac - c) <= 1) return false
             }
+            return true
         }
 
-        // 2. Проверка строк
-        for (r in 0 until n) {
-            if (occupiedRows[r]) continue
-            val avail = (0 until n)
-                .filter { c -> blockedCount[r][c] == 0 && isSafe(r, c, grid[r][c]) }
-                .map { c -> Pair(r, c) }
-            if (avail.isEmpty()) return null
-            if (avail.size < minLen) {
-                minLen = avail.size
-                best = avail
+        fun backtrack(idx: Int): Boolean {
+            if (idx == remainingRegions.size) return true
+            val reg = remainingRegions[idx]
+            val cells = regionCells[reg] ?: return false
+
+            for (i in 0 until cells.size) {
+                val (r, c) = cells[i]
+                if (canPlace(r, c)) {
+                    usedRows[r] = true
+                    usedCols[c] = true
+                    assigned.add(Pair(r, c))
+
+                    if (backtrack(idx + 1)) return true
+
+                    assigned.removeAt(assigned.size - 1)
+                    usedRows[r] = false
+                    usedCols[c] = false
+                }
             }
+            return false
         }
 
-        // 3. Проверка столбцов
-        for (c in 0 until n) {
-            if (occupiedCols[c]) continue
-            val avail = (0 until n)
-                .filter { r -> blockedCount[r][c] == 0 && isSafe(r, c, grid[r][c]) }
-                .map { r -> Pair(r, c) }
-            if (avail.isEmpty()) return null
-            if (avail.size < minLen) {
-                minLen = avail.size
-                best = avail
-            }
+        if (backtrack(0)) return assigned
+        if (prePlacedCats.isNotEmpty()) {
+            return MeowdokuSolver(grid, emptyList()).solve()
         }
-
-        return best
-    }
-
-    private fun backtrack(): Boolean {
-        if (cats.size == n) return true
-        val candidates = selectMrvCandidates() ?: return false
-
-        for ((r, c) in candidates) {
-            val regId = grid[r][c]
-            if (!isSafe(r, c, regId)) continue
-
-            cats.add(Pair(r, c))
-            occupiedRows[r] = true
-            occupiedCols[c] = true
-            occupiedRegions.add(regId)
-
-            val affected = getAffectedCells(r, c, regId)
-            for ((ar, ac) in affected) blockedCount[ar][ac]++
-
-            if (backtrack()) return true
-
-            for ((ar, ac) in affected) blockedCount[ar][ac]--
-            occupiedRegions.remove(regId)
-            occupiedCols[c] = false
-            occupiedRows[r] = false
-            cats.removeAt(cats.lastIndex)
-        }
-        return false
+        return null
     }
 }
